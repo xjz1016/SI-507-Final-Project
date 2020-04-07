@@ -10,16 +10,16 @@ import sqlite3
 
 CACHE_FILE = 'cache.json'
 CACHE_DICT = {}
+DB_NAME = 'final_project.sqlite'
 API_KEY = secret.API_KEY
 HEADERS = {'Authorization': 'Bearer {}'.format(API_KEY),
            'User-Agent': 'UMSI 507 Course Project - Python Scraping',
            'From': 'junzhexu@umich.edu',
-           'Course-Info': 'https://si.umich.edu/programs/courses/507' 
-        }
-DB_NAME = 'final_project.sqlite'
+           'Course-Info': 'https://si.umich.edu/programs/courses/507'}
 
 class City:
-    def __init__(self, name=None, state=None, population=0, area=0, latitude='', longitude=''):
+    def __init__(self, id_pos=0, name=None, state=None, population=0, area=0, latitude='', longitude=''):
+        self.id_pos = id_pos
         self.name = name
         self.state = state
         self.population = population
@@ -28,7 +28,7 @@ class City:
         self.longitude = longitude
 
 class Restaurant:
-    def __init__(self, rating=0, price='', phone='', category='', yelp_id='', url='', 
+    def __init__(self, rating=0, price=None, phone='', category='', yelp_id='', url='', 
                     review_num=0, name='', city='', state=''):
         self.rating = rating
         self.price = price
@@ -85,7 +85,7 @@ def db_create_table_cities():
     # drop_cities_sql = 'DROP TABLE IF EXISTS "Cities"'
     create_cities_sql = '''
         CREATE TABLE IF NOT EXISTS "Cities" (
-            "Id" INTEGER PRIMARY KEY AUTOINCREMENT, 
+            "Id" INTEGER PRIMARY KEY UNIQUE, 
             "Name" TEXT NOT NULL,
             "State" TEXT NOT NULL, 
             "Population" INTEGER NOT NULL,
@@ -110,10 +110,10 @@ def db_create_table_restaurants():
             "City" TEXT NOT NULL,
             "State" TEXT NOT NULL,
             "Rating" INTEGER,
-            "Price" TEXT NOT NULL,
+            "Price" INTEGER,
             "Category" TEXT,
             "Phone" TEXT,
-            "Yelp_id" TEXT NOT NULL,
+            "Yelp_id" TEXT NOT NULL UNIQUE,
             "Url" TEXT,
             "Number of Review" INTEGER
         )
@@ -126,22 +126,12 @@ def db_create_table_restaurants():
 def db_write_table_cities(city_instances):
     insert_cities_sql = '''
         INSERT OR IGNORE INTO Cities
-        VALUES (NULL, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     '''
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     for c in city_instances:
-        # print(c.name,c.state,c.population,c.area,c.latitude,c.longitude)
-        cur.execute(insert_cities_sql,
-            [
-                c.name,
-                c.state,
-                c.population,
-                c.area,
-                c.latitude,
-                c.longitude
-            ]
-        )
+        cur.execute(insert_cities_sql, [c.id_pos, c.name, c.state, c.population, c.area, c.latitude, c.longitude])
     conn.commit()
     conn.close()
 
@@ -154,18 +144,7 @@ def db_write_table_restaurants(restaurant_instances):
     cur = conn.cursor()
     for r in restaurant_instances:
         cur.execute(insert_restaurants_sql,
-            [
-                r.name,
-                r.city,
-                r.state,
-                r.rating,
-                r.price,
-                r.category,
-                r.phone,
-                r.yelp_id,
-                r.url,
-                r.review_num
-            ]
+            [r.name, r.city, r.state, r.rating, r.price, r.category, r.phone, r.yelp_id, r.url, r.review_num]
         )
     conn.commit()
     conn.close()
@@ -178,6 +157,7 @@ def build_city_instance():
     tr_list = soup.find('table', class_='wikitable sortable').find('tbody').find_all('tr')[1:] # total 314 cities in the list, each in a row
     for tr in tr_list: # each tr is a city row, td is the data in each column
         td_list = tr.find_all('td')
+        id_pos = int(td_list[0].text.strip())
         name = str(td_list[1].find('a').text.strip())
         try:
             state = str(td_list[2].find('a').text.strip())
@@ -188,7 +168,7 @@ def build_city_instance():
         lati_longi = td_list[10].find('span', class_='geo-dec').text.strip().split(' ')
         latitude = str(lati_longi[0])
         longitude = str(lati_longi[1])
-        instance = City(name=name, state=state, population=population, area=area, latitude=latitude, longitude=longitude)
+        instance = City(id_pos=id_pos, name=name, state=state, population=population, area=area, latitude=latitude, longitude=longitude)
         city_instances.append(instance)
     return city_instances
 
@@ -197,16 +177,16 @@ def build_restaurant_instance(city_instances):
     endpoint_url = 'https://api.yelp.com/v3/businesses/search'
     for c in city_instances:
         city = c.name
-        params = {'location': city, 'term': 'restaurant', 'limit': 20}
+        params = {'location': city, 'term': 'restaurant', 'limit': 30, 'attributes': 'open_to_all'}
         uniqkey = construct_unique_key(endpoint_url, params)
         results = make_url_request_using_cache(url_or_uniqkey=uniqkey, params=params)
         if 'businesses' in results.keys():
             for business in results['businesses']:
                 rating = business['rating']
                 try:
-                    price = business['price']
+                    price = len(business['price'].strip())
                 except:
-                    price = 'unknown'
+                    price = None
                 phone = business['display_phone']
                 try:
                     category = business['categories'][0]['title']
@@ -218,10 +198,8 @@ def build_restaurant_instance(city_instances):
                 name = business['name']
                 state = business['location']['state']
                 instance = Restaurant(rating=rating, price=price, phone=phone, category=category, yelp_id=yelp_id, 
-                                    url=url, review_num=review_num, name=name, city=city, state=state)
+                                      url=url, review_num=review_num, name=name, city=city, state=state)
                 restaurant_instances.append(instance)
-                # print(rating, price, phone, category, review_num, name, state)
-
     return restaurant_instances
 
 def construct_unique_key(baseurl, params):
@@ -277,11 +255,11 @@ def make_url_request_using_cache(url_or_uniqkey, params=None):
         endpoint_url = 'https://api.yelp.com/v3/businesses/search'
         response = requests.get(endpoint_url, headers = HEADERS, params=params)
         CACHE_DICT[url_or_uniqkey] = response.json()
-
+    
     save_cache(CACHE_DICT, CACHE_FILE)
     return CACHE_DICT[url_or_uniqkey]
 
-def initialize_database():
+def build_database():
     city_instances = build_city_instance()
     db_create_table_cities()
     db_write_table_cities(city_instances)
@@ -291,6 +269,5 @@ def initialize_database():
 
 if __name__ == '__main__':
     CACHE_DICT = load_cache(CACHE_FILE)
-    initialize_database()
-    
+    build_database()
     
