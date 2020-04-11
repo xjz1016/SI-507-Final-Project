@@ -5,6 +5,7 @@ import time
 import secret
 import sqlite3
 import plotly.graph_objs as go 
+from plotly.subplots import make_subplots
 
 CACHE_FILE = 'cache.json'
 CACHE_DICT = {}
@@ -112,7 +113,7 @@ def db_create_table_restaurants():
     create_restaurants_sql = '''
         CREATE TABLE IF NOT EXISTS "Restaurants" (
             "Id" INTEGER PRIMARY KEY AUTOINCREMENT, 
-            "Name" TEXT NOT NULL,
+            "Name" TEXT NOT NULL UNIQUE,
             "City" TEXT NOT NULL,
             "State" TEXT NOT NULL,
             "Rating" INTEGER,
@@ -189,7 +190,7 @@ def build_restaurant_instance(city_instances):
     endpoint_url = 'https://api.yelp.com/v3/businesses/search'
     for c in city_instances:
         city = c.name
-        params = {'location': city, 'term': 'restaurant', 'limit': 50}
+        params = {'location': city, 'term': 'restaurants', 'limit': 50}
         uniqkey = construct_unique_key(endpoint_url, params)
         results = make_url_request_using_cache(url_or_uniqkey=uniqkey, params=params)
         if 'businesses' in results.keys():
@@ -314,19 +315,6 @@ def process_city_name(city_name):
     return res.strip()
 
 def barPlot(xvals, yvals, title):
-    ''' generate a bar plot 
-    
-    Parameters
-    ----------
-    xvals: list
-        values of x-axis
-    yvals: list
-        values of y-axis
-    
-    Returns
-    -------
-    none
-    '''
     data = go.Bar(x=xvals, y=yvals)
     basic_layout = go.Layout(title=title)
     fig = go.Figure(data=data, layout=basic_layout)
@@ -339,15 +327,15 @@ def pieplot(labels, values, title):
     fig.show()
 
 def barplot_city_population():
-    query = '''SELECT Name, Population FROM Cities
+    query = '''SELECT Name, Population, State FROM Cities
                 ORDER BY Population DESC'''
     result = searchDB(query)
     xvals = []
     yvals = []
     for row in result:
-        xvals.append(str(row[0]))
+        xvals.append('{}({})'.format(row[0], row[2]))
         yvals.append(int(row[1]))
-    title = 'Barplot for population according to city'
+    title = 'Top 314 cities with largest population in the US'
     barPlot(xvals, yvals, title)
 
 def barplot_avgrating_each_category(city_name):
@@ -380,8 +368,8 @@ def barplot_avgrating_each_category(city_name):
     for i in range(len(sorted_dict)):
         xvals.append(sorted_dict[i][0])
         yvals.append(sorted_dict[i][1])
-    title = 'Average Rating of Each Category in City {}'.format(city_name)
-    barPlot(xvals, yvals, title)
+  
+    return go.Bar(x=xvals, y=yvals)
 
 def barplot_avgprice_each_category(city_name):
     city_name = process_city_name(city_name)
@@ -413,8 +401,8 @@ def barplot_avgprice_each_category(city_name):
     for i in range(len(sorted_dict)):
         xvals.append(sorted_dict[i][0])
         yvals.append(sorted_dict[i][1])
-    title = 'Average Price of Different Categories in City {}'.format(city_name)
-    barPlot(xvals, yvals, title)
+  
+    return go.Bar(x=xvals, y=yvals)
 
 def barplot_toprated_restaurant(city_name):
     city_name = process_city_name(city_name)
@@ -423,11 +411,11 @@ def barplot_toprated_restaurant(city_name):
     results = searchDB(query)
     xvals = []
     yvals = []
-    for row in results[:50]:
+    for row in results:
         xvals.append(str(row[0]))
         yvals.append(float(row[1]))
-    title = 'Top Rated Restaurants in City {}'.format(city_name)
-    barPlot(xvals, yvals, title)
+   
+    return go.Bar(x=xvals, y=yvals)
 
 def barplot_mostreviewed_restaurant(city_name):
     city_name = process_city_name(city_name)
@@ -436,11 +424,44 @@ def barplot_mostreviewed_restaurant(city_name):
     results = searchDB(query)
     xvals = []
     yvals = []
-    for row in results[:50]:
+    for row in results:
         xvals.append(str(row[0]))
         yvals.append(float(row[1]))
-    title = 'Most reviewed Restaurants in City {}'.format(city_name)
-    barPlot(xvals, yvals, title)
+  
+    return go.Bar(x=xvals, y=yvals)
+
+def barplot_avgreview_each_category(city_name):
+    city_name = process_city_name(city_name)
+    query = '''SELECT Category, [Number of Review] FROM Restaurants
+                WHERE City="{}"'''.format(city_name)
+    results = searchDB(query)
+    dict_review = {}
+    for row in results:
+        category = row[0]
+        num_review = int(row[1])
+        if category in dict_review.keys():
+            dict_review[category].append(num_review)
+        else:
+            temp = []
+            temp.append(num_review)
+            dict_review[category] = temp
+
+    dict_avg = {}
+    for key, value in dict_review.items():
+        total = 0
+        for val in value:
+            total += val
+        avg = float(total / len(value))
+        dict_avg[key] = avg
+
+    sorted_dict = sorted(dict_avg.items(), key=lambda x:x[1], reverse=True)
+    xvals = []
+    yvals = []
+    for i in range(len(sorted_dict)):
+        xvals.append(sorted_dict[i][0])
+        yvals.append(sorted_dict[i][1])
+  
+    return go.Bar(x=xvals, y=yvals)
 
 def pieplot_restaurant_categories(city_name):
     city_name = process_city_name(city_name)
@@ -461,8 +482,8 @@ def pieplot_restaurant_categories(city_name):
     for i in range(min(5, len(sorted_dict))):
         labels.append(sorted_dict[i][0])
         values.append(sorted_dict[i][1])
-    title = 'Top 5 Most Popular Restaurant Categories in City {}'.format(city_name)
-    pieplot(labels, values, title)
+
+    return go.Pie(labels=labels, values=values)
 
 def barplot_compare(city_list):
     result_list = []
@@ -483,53 +504,99 @@ def barplot_compare(city_list):
     fig.update_layout(barmode='group', xaxis_tickangle=0, title='Comparison Between Different Cities')
     fig.show()
 
+def multiple_plots_city(city_name):
+    city_name = process_city_name(city_name)
+    fig = make_subplots(rows=3, cols=2,
+                        specs=[[{"type": "pie"}, {"type": "bar"}],
+                              [{"type": "bar"}, {"type": "bar"}],
+                              [{"type": "bar"}, {"type": "bar"}]], 
+                        subplot_titles=('Top 5 Most Popular Restaurant Types in {}'.format(city_name), 
+                                        'Average Number of Reviews of Each Category in {}'.format(city_name), 
+                                        'Average Rating of Each Category in {}'.format(city_name), 
+                                        'Average Price of Different Categories in {}'.format(city_name), 
+                                        'Top Rated Restaurants in {}'.format(city_name),
+                                        'Restaurants Having The Most Number of Reviews in {}'.format(city_name)))
+    fig.add_trace(pieplot_restaurant_categories(city_name), row=1, col=1)
+    fig.add_trace(barplot_avgreview_each_category(city_name), row=1, col=2)
+    fig.add_trace(barplot_avgrating_each_category(city_name), row=2, col=1)
+    fig.add_trace(barplot_avgprice_each_category(city_name), row=2, col=2)
+    fig.add_trace(barplot_toprated_restaurant(city_name), row=3, col=1)
+    fig.add_trace(barplot_mostreviewed_restaurant(city_name), row=3, col=2)
+    fig.update_layout(height=1600, title_text="", xaxis_tickangle=-45)
+    fig.show()
+
 #########################################
-########### Data Presentation ###########
+########## Interactive Program ##########
 #########################################
 
 def run_interactive():
-    print("Here are the top 314 cities that have the largest population in the US")
+    print("\nHere are the top 314 cities that have the largest population in the US")
     barplot_city_population()
-    while True:
-        choice = input('''Type "1" to get information about restaurants in a city, 
-                            or type "2" to compare restaurants in different cities, 
-                            or type "exit" to exit the program: ''')
-        if choice.isnumeric():
+    terminate = False
+    while not terminate:
+        choice = input("\nType in '1' to get restaurant info in a city, or '2' to compare restaurants in different cities, or 'exit' to exit: ")
+        if choice == 'exit':
+            terminate = True
+            break
+        elif choice.isnumeric():
             choice = int(choice)
-            if choice == 1 or choice == 2:
-                break
-        print("Invalid input.")
-    
-    command = ''
-    while command != 'exit':
+            if choice != 1 and choice != 2:
+                print('Invalid Input')
+                continue
+        else:
+            print('Invalid Input')
+            continue
+
         if choice == 1:
-            command = interactive_city()
+            terminate = interactive_city()
         elif choice == 2:
-            command = interactive_compare()
+            terminate = interactive_compare()
     
     print('Bye')
 
 def interactive_city():
     while True:
-        city_name = input('Please type in a city name or type "exit" to quit: ')
-        if city_name == 'exit':
-            return 'exit'
+        city_name = input('\nPlease type in a city name or type "exit" to quit: ')
         city_name = process_city_name(city_name)
-        if city_name not in CITY_LIST:
+        if city_name.lower() == 'exit':
+            return True
+        elif city_name in CITY_LIST:
+            multiple_plots_city(city_name)
+            break
+        else:
             print('Input city not in the list')
             continue
-
+    
+    return False
 
 def interactive_compare():
-    pass
-
+    cityValid = True
+    while True:
+        cities = input("\nPlease type in the city names (>=2) seperated by ',' that you want to compare(e.g., 'New York, Los Angeles, Chicago') or type in 'exit' to exit: ")
+        if cities == 'exit':
+            return True
+        elif cities == '':
+            print('Invalid Input')
+            continue
+        else:
+            city_list = cities.split(',')
+            if len(city_list) < 2:
+                print('Invalid Input')
+                continue
+            else:
+                for i in range(len(city_list)):
+                    city_list[i] = process_city_name(city_list[i])
+                    if city_list[i] not in CITY_LIST:
+                        print('Invalid city name')
+                        cityValid = False
+                        break
+                if cityValid:
+                    barplot_compare(city_list)
+                    break
+    
+    return False
+        
 if __name__ == '__main__':
     CACHE_DICT = load_cache(CACHE_FILE)
     build_database()
-    
-    # pieplot_restaurant_categories('ann arbor')
-    # barplot_avgrating_each_category('ann arbor')
-    # barplot_avgprice_each_category('Ann Arbor')
-    # barplot_toprated_restaurant('Ann Arbor')
-    # barplot_mostreviewed_restaurant('Los Angeles')
-    # barplot_compare(['New York', 'Los Angeles', 'Chicago', 'Houston', 'Austin', 'Seattle'])
+    run_interactive()
