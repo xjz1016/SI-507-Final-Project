@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    table, th, td {
+      border: 1px solid black;
+      font-size: medium;
+      font-family: 'Times New Roman';
+    }
+    </style>
+</head>
+<body>
+    <h1><b>Hello, welcome!</b></h1>
+    <h3>Below is a list of the US cities ranked by <a href="/population">population</a>: </h3>
+    <table align="left">
+        <tr>
+            <th><b>Rank</b></th>
+            <th><b>City</b></th>
+            <th><b>State</b></th>
+            <th><b>Population</b></th>
+        </tr>
+        {% for id, temp in city_dict.items() %}
+        <tr>
+            <td width="50px" align="center">{{id}}</td>
+            <td width="250px" align="center"><a href="/city/{{temp[0]}}">{{temp[0]}}</a></td>
+            <td width="250px" align="center"><a href="/state/{{temp[1]}}">{{temp[1]}}</a></td>
+            <td width="250px" align="center">{{temp[2]}}</td>
+        </tr>    
+        {% endfor %}
+    </table>
+</body>
+</html>

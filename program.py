@@ -4,18 +4,24 @@ import json
 import time
 import secret
 import sqlite3
-import plotly.graph_objs as go 
+import plotly.graph_objs as go
+import plotly
 from plotly.subplots import make_subplots
+from plotly.offline import plot 
+from flask import Flask, render_template, Markup
 
 CACHE_FILE = 'cache.json'
 CACHE_DICT = {}
 DB_NAME = 'final_project.sqlite'
 API_KEY = secret.API_KEY
-HEADERS = { 'Authorization': 'Bearer {}'.format(API_KEY),
-            'User-Agent': 'UMSI 507 Course Project - Python Scraping',
-            'From': 'junzhexu@umich.edu',
-            'Course-Info': 'https://si.umich.edu/programs/courses/507'}
-CITY_LIST= []
+HEADERS = {'Authorization': 'Bearer {}'.format(API_KEY),
+           'User-Agent': 'UMSI 507 Course Project - Python Scraping',
+           'From': 'junzhexu@umich.edu',
+           'Course-Info': 'https://si.umich.edu/programs/courses/507'
+}
+
+app = Flask(__name__)
+
 #########################################
 ################ Class ##################
 #########################################
@@ -32,7 +38,7 @@ class City:
 
 class Restaurant:
     def __init__(self, rating=0, price=None, phone='', category='', yelp_id='', url='', 
-                    review_num=0, name='', city='', state=''):
+                 review_num=0, name='', city='', state=''):
         self.rating = rating
         self.price = price
         self.phone = phone
@@ -179,9 +185,9 @@ def build_city_instance():
         latitude = str(lati_longi[0])
         longitude = str(lati_longi[1])
         instance = City(id_pos=id_pos, name=name, state=state, population=population, 
-                            area=area, latitude=latitude, longitude=longitude)
+                        area=area, latitude=latitude, longitude=longitude
+        )
         city_instances.append(instance)
-        CITY_LIST.append(name)
     
     return city_instances
 
@@ -190,7 +196,7 @@ def build_restaurant_instance(city_instances):
     endpoint_url = 'https://api.yelp.com/v3/businesses/search'
     for c in city_instances:
         city = c.name
-        params = {'location': city, 'term': 'restaurants', 'limit': 50}
+        params = {'location': city + ',' + c.state , 'term': 'restaurants', 'limit': 50}
         uniqkey = construct_unique_key(endpoint_url, params)
         results = make_url_request_using_cache(url_or_uniqkey=uniqkey, params=params)
         if 'businesses' in results.keys():
@@ -314,45 +320,18 @@ def process_city_name(city_name):
         res += word.lower().capitalize() + ' '
     return res.strip()
 
-def barPlot(xvals, yvals, title):
-    data = go.Bar(x=xvals, y=yvals)
-    basic_layout = go.Layout(title=title)
-    fig = go.Figure(data=data, layout=basic_layout)
-    fig.show()
-
-def pieplot(labels, values, title):
-    data = go.Pie(labels=labels, values=values)
-    basic_layout = go.Layout(title=title)
-    fig = go.Figure(data=data, layout=basic_layout)
-    fig.show()
-
-def barplot_city_population():
-    query = '''SELECT Name, Population, State FROM Cities
-                ORDER BY Population DESC'''
-    result = searchDB(query)
-    xvals = []
-    yvals = []
-    for row in result:
-        xvals.append('{}({})'.format(row[0], row[2]))
-        yvals.append(int(row[1]))
-    title = 'Top 314 cities with largest population in the US'
-    barPlot(xvals, yvals, title)
-
-def barplot_avgrating_each_category(city_name):
-    city_name = process_city_name(city_name)
-    query = '''SELECT Category, Rating FROM Restaurants
-                WHERE City="{}"'''.format(city_name)
-    results = searchDB(query)
+def get_avg_and_sort(results):
+    # result is the list of tuples returned by database query. The tuple must be length of 2!
     dict_rating = {}
     for row in results:
-        category = row[0]
-        rating = float(row[1])
-        if category in dict_rating.keys():
-            dict_rating[category].append(rating)
+        data0 = row[0]
+        data1 = float(row[1])
+        if data0 in dict_rating.keys():
+            dict_rating[data0].append(data1)
         else:
             temp = []
-            temp.append(rating)
-            dict_rating[category] = temp
+            temp.append(data1)
+            dict_rating[data0] = temp
 
     dict_avg = {}
     for key, value in dict_rating.items():
@@ -368,42 +347,90 @@ def barplot_avgrating_each_category(city_name):
     for i in range(len(sorted_dict)):
         xvals.append(sorted_dict[i][0])
         yvals.append(sorted_dict[i][1])
-  
-    return go.Bar(x=xvals, y=yvals)
+
+    return xvals, yvals
+
+def barplot_city_population():
+    query = '''SELECT Name, Population, State FROM Cities
+                ORDER BY Population DESC'''
+    result = searchDB(query)
+    xvals = []
+    yvals = []
+    for row in result[:50]:
+        xvals.append('{}({})'.format(row[0], row[2]))
+        yvals.append(int(row[1]))
+    
+    title = 'Top 50 Cities By Population In The US'
+    return flask_plot(xvals, yvals, title, 'bar')
+
+def flask_plot(xvals, yvals, title, fig_type):
+    fig = make_subplots(rows=1, cols=1, specs=[[{"type": fig_type}]], subplot_titles=(title))
+    if fig_type == 'pie':
+        fig.add_trace(go.Pie(labels=xvals, values=yvals), row=1, col=1)
+        fig.update_traces(hole=.4, hoverinfo="label+percent+name")
+    elif fig_type == 'bar':
+        fig.add_trace(go.Bar(x=xvals, y=yvals), row=1, col=1)
+    
+    fig.update_layout(xaxis_tickangle=-45, annotations=[dict(text=title, font_size=25, showarrow=False)])
+    fig_div = plot(fig, output_type="div")
+    return fig_div
+
+def pieplot_restaurant_categories(city_name):
+    city_name = process_city_name(city_name)
+    query = '''SELECT Category FROM Restaurants
+                WHERE City="{}"'''.format(city_name)
+    results = searchDB(query)
+    dict_category = {}
+    for row in results:
+        category = row[0]
+        if category in dict_category.keys():
+            dict_category[category] += 1
+        else:
+            dict_category[category] = 1
+    
+    sorted_list = sorted(dict_category.items(), key=lambda x:x[1], reverse=True)
+    labels = []
+    values = []
+    for row in sorted_list[:3]:
+        labels.append(row[0])
+        values.append(row[1])
+    
+    others_num = 0
+    for row in sorted_list[3:]:
+        others_num += row[1]
+    
+    labels.append('Others')
+    values.append(others_num)
+    title = '''Popular Restaurant Types in {}'''.format(city_name)
+    return flask_plot(labels, values, title, 'pie')
+
+def barplot_avgrating_each_category(city_name):
+    city_name = process_city_name(city_name)
+    query = '''SELECT Category, Rating FROM Restaurants
+                WHERE City="{}"'''.format(city_name)
+    results = searchDB(query)
+    xvals, yvals = get_avg_and_sort(results)
+    title = 'Average Rating of Restaurants By Category in {}'.format(city_name)
+    return flask_plot(xvals, yvals, title, 'bar')
 
 def barplot_avgprice_each_category(city_name):
     city_name = process_city_name(city_name)
     query = '''SELECT Category, Price FROM Restaurants
                 WHERE City="{}" AND Price NOTNULL'''.format(city_name)
     results = searchDB(query)
-    dict_price = {}
-    for row in results:
-        category = row[0]
-        price = float(row[1])
-        if category in dict_price.keys():
-            dict_price[category].append(price)
-        else:
-            temp = []
-            temp.append(price)
-            dict_price[category] = temp
-
-    dict_avg = {}
-    for key, value in dict_price.items():
-        total = 0
-        for val in value:
-            total += val
-        avg = float(total / len(value))
-        dict_avg[key] = avg
-
-    sorted_dict = sorted(dict_avg.items(), key=lambda x:x[1], reverse=True)
-    xvals = []
-    yvals = []
-    for i in range(len(sorted_dict)):
-        xvals.append(sorted_dict[i][0])
-        yvals.append(sorted_dict[i][1])
+    xvals, yvals = get_avg_and_sort(results)
+    title = 'Average Price of Restaurants By Category in {}'.format(city_name)
+    return flask_plot(xvals, yvals, title, 'bar')
   
-    return go.Bar(x=xvals, y=yvals)
-
+def barplot_avgreview_each_category(city_name):
+    city_name = process_city_name(city_name)
+    query = '''SELECT Category, [Number of Review] FROM Restaurants
+                WHERE City="{}"'''.format(city_name)
+    results = searchDB(query)
+    xvals, yvals = get_avg_and_sort(results)
+    title = 'Average Number of Reviews of Different Categories in {}'.format(city_name)
+    return flask_plot(xvals, yvals, title, 'bar')
+  
 def barplot_toprated_restaurant(city_name):
     city_name = process_city_name(city_name)
     query = '''SELECT Name, Rating FROM Restaurants WHERE City="{}"
@@ -415,8 +442,9 @@ def barplot_toprated_restaurant(city_name):
         xvals.append(str(row[0]))
         yvals.append(float(row[1]))
    
-    return go.Bar(x=xvals, y=yvals)
-
+    title = 'Restaurants Ranking By Rating in {}'.format(city_name)
+    return flask_plot(xvals, yvals, title, 'bar')
+   
 def barplot_mostreviewed_restaurant(city_name):
     city_name = process_city_name(city_name)
     query = '''SELECT Name, [Number of Review] FROM Restaurants WHERE City="{}"
@@ -427,63 +455,41 @@ def barplot_mostreviewed_restaurant(city_name):
     for row in results:
         xvals.append(str(row[0]))
         yvals.append(float(row[1]))
-  
-    return go.Bar(x=xvals, y=yvals)
-
-def barplot_avgreview_each_category(city_name):
+    
+    title = 'Restaurants Ranking By Reviews in {}'.format(city_name)
+    return flask_plot(xvals, yvals, title, 'bar')
+   
+def barplot_topprice_restaurant(city_name):
     city_name = process_city_name(city_name)
-    query = '''SELECT Category, [Number of Review] FROM Restaurants
-                WHERE City="{}"'''.format(city_name)
+    query = '''SELECT Name, Price FROM Restaurants WHERE City="{}"
+                AND Price NOTNULL ORDER BY Price DESC'''.format(city_name)
     results = searchDB(query)
-    dict_review = {}
-    for row in results:
-        category = row[0]
-        num_review = int(row[1])
-        if category in dict_review.keys():
-            dict_review[category].append(num_review)
-        else:
-            temp = []
-            temp.append(num_review)
-            dict_review[category] = temp
-
-    dict_avg = {}
-    for key, value in dict_review.items():
-        total = 0
-        for val in value:
-            total += val
-        avg = float(total / len(value))
-        dict_avg[key] = avg
-
-    sorted_dict = sorted(dict_avg.items(), key=lambda x:x[1], reverse=True)
     xvals = []
     yvals = []
-    for i in range(len(sorted_dict)):
-        xvals.append(sorted_dict[i][0])
-        yvals.append(sorted_dict[i][1])
-  
-    return go.Bar(x=xvals, y=yvals)
-
-def pieplot_restaurant_categories(city_name):
-    city_name = process_city_name(city_name)
-    query = '''SELECT Category FROM Restaurants
-                WHERE City="{}"'''.format(city_name)
-    results = searchDB(query)
-    dict_category = {}
     for row in results:
-        cur = row[0]
-        if cur in dict_category.keys():
-            dict_category[cur] += 1
-        else:
-            dict_category[cur] = 1
+        xvals.append(str(row[0]))
+        yvals.append(int(row[1]))
+   
+    title = 'Restaurants Ranking By Price in {}'.format(city_name)
+    return flask_plot(xvals, yvals, title, 'bar')
 
-    sorted_dict = sorted(dict_category.items(), key=lambda x:x[1], reverse=True)
-    labels = []
-    values = []
-    for i in range(min(5, len(sorted_dict))):
-        labels.append(sorted_dict[i][0])
-        values.append(sorted_dict[i][1])
-
-    return go.Pie(labels=labels, values=values)
+def barplot_avgrating_state():
+    query = '''SELECT c.State, r.Rating FROM Cities as c
+                JOIN Restaurants as r ON c.Name=r.City
+                WHERE r.Rating NOTNULL'''
+    results = searchDB(query)
+    xvals, yvals = get_avg_and_sort(results)
+    title = 'Average Restaurants Rating By States'
+    return flask_plot(xvals, yvals, title, 'bar')
+   
+def barplot_avgprice_state():
+    query = '''SELECT c.State, r.Price FROM Cities as c
+                JOIN Restaurants as r ON c.Name=r.City
+                WHERE r.Price NOTNULL'''
+    results = searchDB(query)
+    xvals, yvals = get_avg_and_sort(results)
+    title = 'Average Restaurants Price By States'
+    return flask_plot(xvals, yvals, title, 'bar')
 
 def barplot_compare(city_list):
     result_list = []
@@ -504,99 +510,87 @@ def barplot_compare(city_list):
     fig.update_layout(barmode='group', xaxis_tickangle=0, title='Comparison Between Different Cities')
     fig.show()
 
-def multiple_plots_city(city_name):
+# def multiple_plots_city(city_name):
+#     city_name = process_city_name(city_name)
+#     fig = make_subplots(rows=3, cols=2,
+#                         specs=[[{"type": "pie"}, {"type": "bar"}],
+#                               [{"type": "bar"}, {"type": "bar"}],
+#                               [{"type": "bar"}, {"type": "bar"}]], 
+#                         subplot_titles=('Top 5 Most Popular Restaurant Types in {}'.format(city_name), 
+#                                         'Average Number of Reviews of Each Category in {}'.format(city_name), 
+#                                         'Average Rating of Each Category in {}'.format(city_name), 
+#                                         'Average Price of Different Categories in {}'.format(city_name), 
+#                                         'Top Rated Restaurants in {}'.format(city_name),
+#                                         'Restaurants Having The Most Number of Reviews in {}'.format(city_name)))
+#     fig.add_trace(pieplot_restaurant_categories(city_name), row=1, col=1)
+#     fig.add_trace(barplot_avgreview_each_category(city_name), row=1, col=2)
+#     fig.add_trace(barplot_avgrating_each_category(city_name), row=2, col=1)
+#     fig.add_trace(barplot_avgprice_each_category(city_name), row=2, col=2)
+#     fig.add_trace(barplot_toprated_restaurant(city_name), row=3, col=1)
+#     fig.add_trace(barplot_mostreviewed_restaurant(city_name), row=3, col=2)
+#     fig.update_layout(height=1600, title_text="", xaxis_tickangle=-45)
+#     fig.show()
+
+#########################################
+############# Flask Web App #############
+#########################################
+
+@app.route('/')
+def home():
+    city_dict = {}
+    query = '''SELECT Id, Name, State, Population FROM Cities'''
+    results = searchDB(query)
+    for row in results:
+        temp = []
+        temp.append(row[1])
+        temp.append(row[2])
+        temp.append(row[3])
+        city_dict[row[0]] = temp
+    
+    return render_template('home.html', city_dict=city_dict)
+
+@app.route('/population')
+def population():
+    figure = barplot_city_population()
+    return render_template('plot.html', figure=Markup(figure))
+
+@app.route('/city/<city_nm>/')
+def city(city_nm):
+    return render_template('city.html', name=city_nm)
+
+@app.route('/city/<city_nm>/<choice>')
+def data(city_nm, choice):
+    city_name = city_nm.replace('%20', ' ')
     city_name = process_city_name(city_name)
-    fig = make_subplots(rows=3, cols=2,
-                        specs=[[{"type": "pie"}, {"type": "bar"}],
-                              [{"type": "bar"}, {"type": "bar"}],
-                              [{"type": "bar"}, {"type": "bar"}]], 
-                        subplot_titles=('Top 5 Most Popular Restaurant Types in {}'.format(city_name), 
-                                        'Average Number of Reviews of Each Category in {}'.format(city_name), 
-                                        'Average Rating of Each Category in {}'.format(city_name), 
-                                        'Average Price of Different Categories in {}'.format(city_name), 
-                                        'Top Rated Restaurants in {}'.format(city_name),
-                                        'Restaurants Having The Most Number of Reviews in {}'.format(city_name)))
-    fig.add_trace(pieplot_restaurant_categories(city_name), row=1, col=1)
-    fig.add_trace(barplot_avgreview_each_category(city_name), row=1, col=2)
-    fig.add_trace(barplot_avgrating_each_category(city_name), row=2, col=1)
-    fig.add_trace(barplot_avgprice_each_category(city_name), row=2, col=2)
-    fig.add_trace(barplot_toprated_restaurant(city_name), row=3, col=1)
-    fig.add_trace(barplot_mostreviewed_restaurant(city_name), row=3, col=2)
-    fig.update_layout(height=1600, title_text="", xaxis_tickangle=-45)
-    fig.show()
 
-#########################################
-########## Interactive Program ##########
-#########################################
-
-def run_interactive():
-    print("\nHere are the top 314 cities that have the largest population in the US")
-    barplot_city_population()
-    terminate = False
-    while not terminate:
-        choice = input("\nType in '1' to get restaurant info in a city, or '2' to compare restaurants in different cities, or 'exit' to exit: ")
-        if choice == 'exit':
-            terminate = True
-            break
-        elif choice.isnumeric():
-            choice = int(choice)
-            if choice != 1 and choice != 2:
-                print('Invalid Input')
-                continue
-        else:
-            print('Invalid Input')
-            continue
-
-        if choice == 1:
-            terminate = interactive_city()
-        elif choice == 2:
-            terminate = interactive_compare()
+    if choice == 'barplot_avgprice_each_category':
+        figure = barplot_avgprice_each_category(city_name)
+    elif choice == 'barplot_avgrating_each_category':
+        figure = barplot_avgrating_each_category(city_name)
+    elif choice == 'barplot_avgreview_each_category':
+        figure = barplot_avgreview_each_category(city_name)
+    elif choice == 'barplot_toprated_restaurant':
+        figure = barplot_toprated_restaurant(city_name)
+    elif choice == 'barplot_topprice_restaurant':
+        figure = barplot_topprice_restaurant(city_name)
+    elif choice == 'barplot_mostreviewed_restaurant':
+        figure = barplot_mostreviewed_restaurant(city_name)
+    if choice == 'pieplot_restaurant_categories':
+        figure = pieplot_restaurant_categories(city_name)
     
-    print('Bye')
+    return render_template('plot.html', name=city_name, figure=Markup(figure))
 
-def interactive_city():
-    while True:
-        city_name = input('\nPlease type in a city name or type "exit" to quit: ')
-        city_name = process_city_name(city_name)
-        if city_name.lower() == 'exit':
-            return True
-        elif city_name in CITY_LIST:
-            multiple_plots_city(city_name)
-            break
-        else:
-            print('Input city not in the list')
-            continue
-    
-    return False
 
-def interactive_compare():
-    cityValid = True
-    while True:
-        cities = input("\nPlease type in the city names (>=2) seperated by ',' that you want to compare(e.g., 'New York, Los Angeles, Chicago') or type in 'exit' to exit: ")
-        if cities == 'exit':
-            return True
-        elif cities == '':
-            print('Invalid Input')
-            continue
-        else:
-            city_list = cities.split(',')
-            if len(city_list) < 2:
-                print('Invalid Input')
-                continue
-            else:
-                for i in range(len(city_list)):
-                    city_list[i] = process_city_name(city_list[i])
-                    if city_list[i] not in CITY_LIST:
-                        print('Invalid city name')
-                        cityValid = False
-                        break
-                if cityValid:
-                    barplot_compare(city_list)
-                    break
-    
-    return False
-        
+
 if __name__ == '__main__':
     CACHE_DICT = load_cache(CACHE_FILE)
     build_database()
-    run_interactive()
+    app.run(debug=True, use_reloader=False)
+
+    # barplot_city_population()
+    
+    # barplot_avgprice_state()
+    # barplot_avgrating_state()
+    
+    # barplot_compare(['new york', 'los angeles', 'chicago'])
+   
