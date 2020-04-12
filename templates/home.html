@@ -11,13 +11,13 @@
     </style>
 </head>
 <body>
-    <h1><b>Hello, welcome!</b></h1>
-    <h3>Below is a list of the US cities ranked by <a href="/population">population</a>: </h3>
+    <h1><b>Please click the links below for more information!</b></h1>
+    <h3>Top US cities ranked by <a href="/population">population</a>: </h3>
     <table align="left">
         <tr>
             <th><b>Rank</b></th>
-            <th><b>City</b></th>
-            <th><b>State</b></th>
+            <th><b>City (<a href="/compare/city">compare</a>)</b></th>
+            <th><b>State (<a href="/compare/state">compare</a>)</b></th>
             <th><b>Population</b></th>
         </tr>
         {% for id, temp in city_dict.items() %}
