@@ -10,8 +10,7 @@ from plotly.subplots import make_subplots
 from plotly.offline import plot 
 from flask import Flask, render_template, Markup
 
-CACHE_FILE = 'cache.json'
-CACHE_DICT = {}
+
 DB_NAME = 'final_project.sqlite'
 API_KEY = secret.API_KEY
 HEADERS = {'Authorization': 'Bearer {}'.format(API_KEY),
@@ -51,7 +50,7 @@ class Restaurant:
         self.state = state
 
 #########################################
-########### Data Processing #############
+############### Caching #################
 #########################################
 
 def load_cache(cache_file_name):
@@ -91,6 +90,13 @@ def save_cache(cache, cache_file_name):
     contents_to_write = json.dumps(cache)
     cache_file.write(contents_to_write)
     cache_file.close()
+
+CACHE_FILE = 'cache.json'
+CACHE_DICT = load_cache(CACHE_FILE)
+
+#########################################
+########### Data Processing #############
+#########################################
 
 def db_create_table_cities():
     conn = sqlite3.connect(DB_NAME)
@@ -166,6 +172,7 @@ def db_write_table_restaurants(restaurant_instances):
     conn.close()
 
 def build_city_instance():
+    # CACHE_DICT = load_cache(CACHE_FILE)
     city_instances = []
     site_url = 'https://en.wikipedia.org/wiki/List_of_United_States_cities_by_population'
     url_text = make_url_request_using_cache(url_or_uniqkey=site_url)
@@ -192,6 +199,7 @@ def build_city_instance():
     return city_instances
 
 def build_restaurant_instance(city_instances):
+    # CACHE_DICT = load_cache(CACHE_FILE)
     restaurant_instances = []
     endpoint_url = 'https://api.yelp.com/v3/businesses/search'
     for c in city_instances:
@@ -595,7 +603,6 @@ def compare_choice(city_or_state, rating_or_price):
     return render_template('plot.html', figure=Markup(figure))
 
 if __name__ == '__main__':
-    CACHE_DICT = load_cache(CACHE_FILE)
     build_database()
     app.run(debug=True, use_reloader=False)
   
