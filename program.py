@@ -417,7 +417,7 @@ def pieplot_restaurant_categories(name, target):
     
     labels.append('Others')
     values.append(others_num)
-    title = '''Popular Restaurant Types in {}'''.format(name)
+    title = '''Popular Restaurant Types in {} {}'''.format(name, target.capitalize())
     return flask_plot(labels, values, title, 'pie')
 
 def pieplot_rating(name, target):
@@ -439,7 +439,7 @@ def pieplot_rating(name, target):
     
     labels = list(dict_rating.keys())
     values = list(dict_rating.values())
-    title = 'Restaurant Rating Percentage in {}'.format(name)
+    title = 'Restaurant Rating Percentage in {} {}'.format(name, target.capitalize())
     return flask_plot(labels, values, title, 'pie')
 
 def pieplot_price(name, target):
@@ -461,7 +461,7 @@ def pieplot_price(name, target):
     
     labels = list(dict_price.keys())
     values = list(dict_price.values())
-    title = 'Restaurant Price Percentage in {}'.format(name)
+    title = 'Restaurant Price Percentage in {} {}'.format(name, target.capitalize())
     return flask_plot(labels, values, title, 'pie')
 
 def barplot_avgrating_each_category(name, target):
@@ -474,7 +474,7 @@ def barplot_avgrating_each_category(name, target):
                    WHERE c.State="{}"'''.format(name)
     results = searchDB(query)
     xvals, yvals = get_avg_and_sort(results)
-    title = 'Average Rating of Restaurants By Category in {}'.format(name)
+    title = 'Average Rating of Restaurants By Category in {} {}'.format(name, target.capitalize())
     return flask_plot(xvals, yvals, title, 'bar')
 
 def barplot_avgprice_each_category(name, target):
@@ -488,7 +488,7 @@ def barplot_avgprice_each_category(name, target):
                    WHERE c.State="{}" AND r.Price NOTNULL'''.format(name)
     results = searchDB(query)
     xvals, yvals = get_avg_and_sort(results)
-    title = 'Average Price of Restaurants By Category in {}'.format(name)
+    title = 'Average Price of Restaurants By Category in {} {}'.format(name, target.capitalize())
     return flask_plot(xvals, yvals, title, 'bar')
   
 def barplot_avgreview_each_category(name, target):
@@ -502,7 +502,7 @@ def barplot_avgreview_each_category(name, target):
                    WHERE c.State="{}"'''.format(name)
     results = searchDB(query)
     xvals, yvals = get_avg_and_sort(results)
-    title = 'Average Number of Reviews of Different Categories in {}'.format(name)
+    title = 'Average Number of Reviews of Different Categories in {} {}'.format(name, target.capitalize())
     return flask_plot(xvals, yvals, title, 'bar')
   
 def barplot_toprated_restaurant(name, target):
@@ -513,15 +513,15 @@ def barplot_toprated_restaurant(name, target):
     elif target == 'state':
         query = '''SELECT r.Name, r.Rating FROM Restaurants as r
                    JOIN Cities as c ON r.City=c.Name
-                   WHERE c.State="{}"'''.format(name)
+                   WHERE c.State="{}" ORDER BY r.Rating DESC'''.format(name)
     results = searchDB(query)
     xvals = []
     yvals = []
-    for row in results[:20]:
+    for row in results[:50]:
         xvals.append(str(row[0]))
         yvals.append(float(row[1]))
    
-    title = 'Top 20 Rated Restaurants in {}'.format(name)
+    title = 'Top Rated Restaurants in {} {}'.format(name, target.capitalize())
     return flask_plot(xvals, yvals, title, 'bar')
    
 def barplot_topprice_restaurant(name, target):
@@ -532,15 +532,15 @@ def barplot_topprice_restaurant(name, target):
     elif target == 'state':
         query = '''SELECT r.Name, r.Price FROM Restaurants as r
                    JOIN Cities as c ON r.City=c.Name
-                   WHERE c.State="{}" AND r.Price NOTNULL'''.format(name)
+                   WHERE c.State="{}" AND r.Price NOTNULL ORDER BY r.Price DESC'''.format(name)
     results = searchDB(query)
     xvals = []
     yvals = []
-    for row in results[:20]:
+    for row in results[:50]:
         xvals.append(str(row[0]))
         yvals.append(int(row[1]))
    
-    title = 'TOP 20 Most Expensive Restaurants in {}'.format(name)
+    title = 'Most Expensive Restaurants in {} {}'.format(name, target.capitalize())
     return flask_plot(xvals, yvals, title, 'bar')
 
 def barplot_mostreviewed_restaurant(name, target):
@@ -551,15 +551,15 @@ def barplot_mostreviewed_restaurant(name, target):
     elif target == 'state':
         query = '''SELECT r.Name, r.[Number of Review] FROM Restaurants as r
                    JOIN Cities as c ON r.City=c.Name
-                   WHERE c.State="{}"'''.format(name)
+                   WHERE c.State="{}" ORDER BY r.[Number of Review] DESC'''.format(name)
     results = searchDB(query)
     xvals = []
     yvals = []
-    for row in results:
+    for row in results[:50]:
         xvals.append(str(row[0]))
         yvals.append(float(row[1]))
     
-    title = 'Top 20 Restaurants With Most Number of Reviews in {}'.format(name)
+    title = 'Top Restaurants With Most Number of Reviews in {} {}'.format(name, target.capitalize())
     return flask_plot(xvals, yvals, title, 'bar')
    
 ########### plots for comparisons ###########
