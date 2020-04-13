@@ -4,5 +4,3 @@ requests==2.23.0
 Flask==1.1.2
 Jinja2==2.11.1
 plotly==4.6.0
-
-

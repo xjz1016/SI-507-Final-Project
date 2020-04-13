@@ -15,9 +15,9 @@ This project aims to build a basic web application, which allows the user to get
 
 (2) Create a new python file "secret.py" in the same folder as "program.py". And add the code:
 ```
-API_KEY = '<your API Key>'
-### Step 2: Install packages
+API_KEY = '<your key>'
 ```  
+### Step 2: Install packages
 $ pip install -r requirements.txt --user
 ```  
 ### Step 3: Run program.py  
