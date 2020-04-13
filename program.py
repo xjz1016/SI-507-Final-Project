@@ -319,7 +319,7 @@ def searchDB(query):
 ########### Data Presentation ###########
 #########################################
 
-def process_city_name(city_name):
+def process_name(city_name):
     split = city_name.split(' ')
     res = ''
     for word in split:
@@ -359,6 +359,18 @@ def get_avg_and_sort(results):
 
     return xvals, yvals
 
+def flask_plot(xvals, yvals, title, fig_type):
+    fig = make_subplots(rows=1, cols=1, specs=[[{"type": fig_type}]], subplot_titles=(title))
+    if fig_type == 'pie':
+        fig.add_trace(go.Pie(labels=xvals, values=yvals), row=1, col=1)
+        fig.update_traces(hole=.4, hoverinfo="label+percent+name")
+    elif fig_type == 'bar':
+        fig.add_trace(go.Bar(x=xvals, y=yvals), row=1, col=1)
+    
+    fig.update_layout(annotations=[dict(text=title, font_size=25, showarrow=False)])
+    fig_div = plot(fig, output_type="div")
+    return fig_div
+
 def barplot_city_population():
     query = '''SELECT Name, Population, State FROM Cities
                 ORDER BY Population DESC'''
@@ -372,22 +384,17 @@ def barplot_city_population():
     title = 'Top 50 Cities By Population In The US'
     return flask_plot(xvals, yvals, title, 'bar')
 
-def flask_plot(xvals, yvals, title, fig_type):
-    fig = make_subplots(rows=1, cols=1, specs=[[{"type": fig_type}]], subplot_titles=(title))
-    if fig_type == 'pie':
-        fig.add_trace(go.Pie(labels=xvals, values=yvals), row=1, col=1)
-        fig.update_traces(hole=.4, hoverinfo="label+percent+name")
-    elif fig_type == 'bar':
-        fig.add_trace(go.Bar(x=xvals, y=yvals), row=1, col=1)
-    
-    fig.update_layout(annotations=[dict(text=title, font_size=25, showarrow=False)])
-    fig_div = plot(fig, output_type="div")
-    return fig_div
+########## plots for cities or states ############
 
-def pieplot_restaurant_categories(city_name):
-    city_name = process_city_name(city_name)
-    query = '''SELECT Category FROM Restaurants
-                WHERE City="{}"'''.format(city_name)
+def pieplot_restaurant_categories(name, target):
+    name = process_name(name)
+    if target == 'city':
+        query = '''SELECT Category FROM Restaurants
+                    WHERE City="{}"'''.format(name)
+    elif target == 'state':
+        query = '''SELECT r.Category FROM Restaurants as r
+                   JOIN Cities as c ON c.Name=r.City
+                   WHERE c.State="{}"'''.format(name)
     results = searchDB(query)
     dict_category = {}
     for row in results:
@@ -410,54 +417,141 @@ def pieplot_restaurant_categories(city_name):
     
     labels.append('Others')
     values.append(others_num)
-    title = '''Popular Restaurant Types in {}'''.format(city_name)
+    title = '''Popular Restaurant Types in {}'''.format(name)
     return flask_plot(labels, values, title, 'pie')
 
-def barplot_avgrating_each_category(city_name):
-    city_name = process_city_name(city_name)
-    query = '''SELECT Category, Rating FROM Restaurants
-                WHERE City="{}"'''.format(city_name)
+def pieplot_rating(name, target):
+    name = process_name(name)
+    if target == 'city':
+        query = '''SELECT Rating FROM Restaurants WHERE City="{}"'''.format(name)
+    elif target == 'state':
+        query = '''SELECT r.Rating FROM Restaurants as r
+                   JOIN Cities as c ON r.City=c.Name
+                   WHERE c.State="{}"'''.format(name)
+    results = searchDB(query)
+    dict_rating = {}
+    for row in results:
+        rating = float(row[0])
+        if rating in dict_rating.keys():
+            dict_rating[rating] += 1
+        else:
+            dict_rating[rating] = 1
+    
+    labels = list(dict_rating.keys())
+    values = list(dict_rating.values())
+    title = 'Restaurant Rating Percentage in {}'.format(name)
+    return flask_plot(labels, values, title, 'pie')
+
+def pieplot_price(name, target):
+    name = process_name(name)
+    if target == 'city':
+        query = '''SELECT Price FROM Restaurants WHERE City="{}" AND Price NOTNULL'''.format(name)
+    elif target == 'state':
+        query = '''SELECT r.Price FROM Restaurants as r
+                   JOIN Cities as c ON r.City=c.Name
+                   WHERE c.State="{}" AND r.Price NOTNULL'''.format(name)
+    results = searchDB(query)
+    dict_price = {}
+    for row in results:
+        price = int(row[0])
+        if price in dict_price.keys():
+            dict_price[price] += 1
+        else:
+            dict_price[price] = 1
+    
+    labels = list(dict_price.keys())
+    values = list(dict_price.values())
+    title = 'Restaurant Price Percentage in {}'.format(name)
+    return flask_plot(labels, values, title, 'pie')
+
+def barplot_avgrating_each_category(name, target):
+    name = process_name(name)
+    if target == 'city':
+        query = '''SELECT Category, Rating FROM Restaurants WHERE City="{}"'''.format(name)
+    elif target == 'state':
+        query = '''SELECT r.Category, r.Rating FROM Restaurants as r
+                   JOIN Cities as c ON r.City=c.Name
+                   WHERE c.State="{}"'''.format(name)
     results = searchDB(query)
     xvals, yvals = get_avg_and_sort(results)
-    title = 'Average Rating of Restaurants By Category in {}'.format(city_name)
+    title = 'Average Rating of Restaurants By Category in {}'.format(name)
     return flask_plot(xvals, yvals, title, 'bar')
 
-def barplot_avgprice_each_category(city_name):
-    city_name = process_city_name(city_name)
-    query = '''SELECT Category, Price FROM Restaurants
-                WHERE City="{}" AND Price NOTNULL'''.format(city_name)
+def barplot_avgprice_each_category(name, target):
+    name = process_name(name)
+    if target == 'city':
+        query = '''SELECT Category, Price FROM Restaurants
+                    WHERE City="{}" AND Price NOTNULL'''.format(name)
+    elif target == 'state':
+        query = '''SELECT r.Category, r.Price FROM Restaurants as r
+                   JOIN Cities as c ON r.City=c.Name
+                   WHERE c.State="{}" AND r.Price NOTNULL'''.format(name)
     results = searchDB(query)
     xvals, yvals = get_avg_and_sort(results)
-    title = 'Average Price of Restaurants By Category in {}'.format(city_name)
+    title = 'Average Price of Restaurants By Category in {}'.format(name)
     return flask_plot(xvals, yvals, title, 'bar')
   
-def barplot_avgreview_each_category(city_name):
-    city_name = process_city_name(city_name)
-    query = '''SELECT Category, [Number of Review] FROM Restaurants
-                WHERE City="{}"'''.format(city_name)
+def barplot_avgreview_each_category(name, target):
+    name = process_name(name)
+    if target == 'city':
+        query = '''SELECT Category, [Number of Review] FROM Restaurants
+                    WHERE City="{}"'''.format(name)
+    elif target == 'state':
+        query = '''SELECT r.Category, r.[Number of Review] FROM Restaurants as r
+                   JOIN Cities as c ON r.City=c.Name
+                   WHERE c.State="{}"'''.format(name)
     results = searchDB(query)
     xvals, yvals = get_avg_and_sort(results)
-    title = 'Average Number of Reviews of Different Categories in {}'.format(city_name)
+    title = 'Average Number of Reviews of Different Categories in {}'.format(name)
     return flask_plot(xvals, yvals, title, 'bar')
   
-def barplot_toprated_restaurant(city_name):
-    city_name = process_city_name(city_name)
-    query = '''SELECT Name, Rating FROM Restaurants WHERE City="{}"
-                ORDER BY Rating DESC'''.format(city_name)
+def barplot_toprated_restaurant(name, target):
+    name = process_name(name)
+    if target == 'city':
+        query = '''SELECT Name, Rating FROM Restaurants WHERE City="{}"
+                    ORDER BY Rating DESC'''.format(name)
+    elif target == 'state':
+        query = '''SELECT r.Name, r.Rating FROM Restaurants as r
+                   JOIN Cities as c ON r.City=c.Name
+                   WHERE c.State="{}"'''.format(name)
     results = searchDB(query)
     xvals = []
     yvals = []
-    for row in results:
+    for row in results[:20]:
         xvals.append(str(row[0]))
         yvals.append(float(row[1]))
    
-    title = 'Restaurants Ranking By Rating in {}'.format(city_name)
+    title = 'Top 20 Rated Restaurants in {}'.format(name)
     return flask_plot(xvals, yvals, title, 'bar')
    
-def barplot_mostreviewed_restaurant(city_name):
-    city_name = process_city_name(city_name)
-    query = '''SELECT Name, [Number of Review] FROM Restaurants WHERE City="{}"
-                ORDER BY [Number of Review] DESC'''.format(city_name)
+def barplot_topprice_restaurant(name, target):
+    name = process_name(name)
+    if target == 'city':
+        query = '''SELECT Name, Price FROM Restaurants WHERE City="{}"
+                    AND Price NOTNULL ORDER BY Price DESC'''.format(name)
+    elif target == 'state':
+        query = '''SELECT r.Name, r.Price FROM Restaurants as r
+                   JOIN Cities as c ON r.City=c.Name
+                   WHERE c.State="{}" AND r.Price NOTNULL'''.format(name)
+    results = searchDB(query)
+    xvals = []
+    yvals = []
+    for row in results[:20]:
+        xvals.append(str(row[0]))
+        yvals.append(int(row[1]))
+   
+    title = 'TOP 20 Most Expensive Restaurants in {}'.format(name)
+    return flask_plot(xvals, yvals, title, 'bar')
+
+def barplot_mostreviewed_restaurant(name, target):
+    name = process_name(name)
+    if target == 'city':
+        query = '''SELECT Name, [Number of Review] FROM Restaurants WHERE City="{}"
+                    ORDER BY [Number of Review] DESC'''.format(name)
+    elif target == 'state':
+        query = '''SELECT r.Name, r.[Number of Review] FROM Restaurants as r
+                   JOIN Cities as c ON r.City=c.Name
+                   WHERE c.State="{}"'''.format(name)
     results = searchDB(query)
     xvals = []
     yvals = []
@@ -465,33 +559,10 @@ def barplot_mostreviewed_restaurant(city_name):
         xvals.append(str(row[0]))
         yvals.append(float(row[1]))
     
-    title = 'Restaurants Ranking By Reviews in {}'.format(city_name)
+    title = 'Top 20 Restaurants With Most Number of Reviews in {}'.format(name)
     return flask_plot(xvals, yvals, title, 'bar')
    
-def barplot_topprice_restaurant(city_name):
-    city_name = process_city_name(city_name)
-    query = '''SELECT Name, Price FROM Restaurants WHERE City="{}"
-                AND Price NOTNULL ORDER BY Price DESC'''.format(city_name)
-    results = searchDB(query)
-    xvals = []
-    yvals = []
-    for row in results:
-        xvals.append(str(row[0]))
-        yvals.append(int(row[1]))
-   
-    title = 'Restaurants Ranking By Price in {}'.format(city_name)
-    return flask_plot(xvals, yvals, title, 'bar')
-
-def barplot_rating_price_state(state_name):
-    state_name = process_city_name(state_name)
-    query = '''SELECT AVG(r.Rating), AVG(r.Price) FROM Cities as c
-               JOIN Restaurants as r ON c.Name=r.City
-               WHERE c.State="{}" AND r.Price NOTNULL'''.format(state_name)
-    results = searchDB(query)
-    xvals = ['Average Rating', 'Average Price']
-    yvals = [results[0][0], results[0][1]]
-    title = 'Average Restaurant Rating And Price in {}'.format(state_name)
-    return flask_plot(xvals, yvals, title, 'bar')
+########### plots for comparisons ###########
 
 def compare_city_barplot_price():
     query = '''SELECT City, Price FROM Restaurants WHERE Price NOTNULL'''
@@ -547,37 +618,32 @@ def population():
     figure = barplot_city_population()
     return render_template('plot.html', figure=Markup(figure))
 
-@app.route('/city/<city_nm>/')
-def city(city_nm):
-    return render_template('city.html', name=city_nm)
+@app.route('/list/<city_or_state>/<nm>/')
+def choice_list(city_or_state, nm):
+    return render_template('list.html', city_or_state=city_or_state, name=nm)
 
-@app.route('/city/<city_nm>/<choice>')
-def data(city_nm, choice):
-    city_name = city_nm.replace('%20', ' ')
-    city_name = process_city_name(city_name)
-
-    if choice == 'barplot_avgprice_each_category':
-        figure = barplot_avgprice_each_category(city_name)
-    elif choice == 'barplot_avgrating_each_category':
-        figure = barplot_avgrating_each_category(city_name)
-    elif choice == 'barplot_avgreview_each_category':
-        figure = barplot_avgreview_each_category(city_name)
-    elif choice == 'barplot_toprated_restaurant':
-        figure = barplot_toprated_restaurant(city_name)
-    elif choice == 'barplot_topprice_restaurant':
-        figure = barplot_topprice_restaurant(city_name)
-    elif choice == 'barplot_mostreviewed_restaurant':
-        figure = barplot_mostreviewed_restaurant(city_name)
+@app.route('/plot/<city_or_state>/<nm>/<choice>')
+def data(city_or_state, nm, choice):
+    name = process_name(nm.replace('%20', ' '))
     if choice == 'pieplot_restaurant_categories':
-        figure = pieplot_restaurant_categories(city_name)
-    
-    return render_template('plot.html', figure=Markup(figure))
-
-@app.route('/state/<state_nm>')
-def state(state_nm):
-    state_name = state_nm.replace('%20', ' ')
-    state_name = process_city_name(state_name)
-    figure = barplot_rating_price_state(state_name)
+        figure = pieplot_restaurant_categories(name, city_or_state)
+    elif choice == 'pieplot_rating':
+        figure = pieplot_rating(name, city_or_state)
+    elif choice == 'pieplot_price':
+        figure = pieplot_price(name, city_or_state)
+    elif choice == 'barplot_avgprice_each_category':
+        figure = barplot_avgprice_each_category(name, city_or_state)
+    elif choice == 'barplot_avgrating_each_category':
+        figure = barplot_avgrating_each_category(name, city_or_state)
+    elif choice == 'barplot_avgreview_each_category':
+        figure = barplot_avgreview_each_category(name, city_or_state)
+    elif choice == 'barplot_toprated_restaurant':
+        figure = barplot_toprated_restaurant(name, city_or_state)
+    elif choice == 'barplot_topprice_restaurant':
+        figure = barplot_topprice_restaurant(name, city_or_state)
+    elif choice == 'barplot_mostreviewed_restaurant':
+        figure = barplot_mostreviewed_restaurant(name, city_or_state)
+   
     return render_template('plot.html', figure=Markup(figure))
 
 @app.route('/compare/<city_or_state>')

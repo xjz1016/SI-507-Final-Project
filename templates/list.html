@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    li {
+      font-size: large;
+      font-family: 'Times New Roman';
+    }
+  </style>
+</head>
+<body>
+    <h1>Restaurants in {{name}} {{city_or_state}}</h1>
+    <h2>Pie charts:</h2>
+    <ol>
+        <li><a href='/plot/{{city_or_state}}/{{name}}/pieplot_restaurant_categories'>Pieplot of restaurant categories</a></li>
+        <li><a href='/plot/{{city_or_state}}/{{name}}/pieplot_rating'>Pieplot of restaurant rating by percentage</a></li>
+        <li><a href='/plot/{{city_or_state}}/{{name}}/pieplot_price'>Pieplot of restaurant price by percentage</a></li>
+    </ol>
+
+    <h2>Bar charts:</h2>
+    <ol>
+      <li><a href='/plot/{{city_or_state}}/{{name}}/barplot_avgrating_each_category'>Barplot of average rating by category</a></li>
+      <li><a href='/plot/{{city_or_state}}/{{name}}/barplot_avgprice_each_category'>Barplot of average Price by category</a></li>
+      <li><a href='/plot/{{city_or_state}}/{{name}}/barplot_avgreview_each_category'>Barplot of average number of reviews by category</a></li>
+      <li><a href='/plot/{{city_or_state}}/{{name}}/barplot_toprated_restaurant'>Barplot of top 20 restaurants by rating</a></li>
+      <li><a href='/plot/{{city_or_state}}/{{name}}/barplot_topprice_restaurant'>Barplot of top 20 restaurants by price</a></li>
+      <li><a href='/plot/{{city_or_state}}/{{name}}/barplot_mostreviewed_restaurant'>Barplot of top 20 restaurants by number of reviews</a></li>
+    </ol> 
+</body>
+</html>

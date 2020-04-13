@@ -23,8 +23,8 @@
         {% for id, temp in city_dict.items() %}
         <tr>
             <td width="50px" align="center">{{id}}</td>
-            <td width="250px" align="center"><a href="/city/{{temp[0]}}">{{temp[0]}}</a></td>
-            <td width="250px" align="center"><a href="/state/{{temp[1]}}">{{temp[1]}}</a></td>
+            <td width="250px" align="center"><a href="/list/city/{{temp[0]}}">{{temp[0]}}</a></td>
+            <td width="250px" align="center"><a href="/list/state/{{temp[1]}}">{{temp[1]}}</a></td>
             <td width="250px" align="center">{{temp[2]}}</td>
         </tr>    
         {% endfor %}
