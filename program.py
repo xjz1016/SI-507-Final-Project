@@ -1,7 +1,6 @@
 from bs4 import BeautifulSoup
 import requests
 import json
-import time
 import secret
 import sqlite3
 import plotly.graph_objs as go
@@ -9,7 +8,6 @@ import plotly
 from plotly.subplots import make_subplots
 from plotly.offline import plot 
 from flask import Flask, render_template, Markup
-
 
 DB_NAME = 'final_project.sqlite'
 API_KEY = secret.API_KEY
