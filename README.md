@@ -10,17 +10,18 @@ This project aims to build a basic web application, which allows the user to get
 (https://www.yelp.com/developers/documentation/v3/business_search)
 
 ## Run the Program
-### Step 1: Install packages
+### Step 1: Apply an API Key for Yelp Fusion
+(1) Go to (https://www.yelp.com/developers/documentation/v3/authentication) and create your app according to the instruction. 
+
+(2) Create a new python file "secret.py" in the same folder as "program.py". And add the code:
+```
+API_KEY = '<your API Key>'
+### Step 2: Install packages
 ```  
-$ pip install -r requirements.txt  --user
+$ pip install -r requirements.txt --user
 ```  
-### Step 2: Run program.py  
+### Step 3: Run program.py  
 ```  
 $ python program.py
 ```  
-### Step 3: Open "http://127.0.0.1:5000/ " in a browser 
-
-
-
-
- 
+### Step 4: Open "http://127.0.0.1:5000/ " in a browser
