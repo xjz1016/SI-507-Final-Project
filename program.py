@@ -78,9 +78,11 @@ class Restaurant:
         the city name that the restaurant located at
     state: string
         the state name that the restaurant is located at
+    city_id: int
+        the id of the city in the table "cities"
     '''
     def __init__(self, rating=0, price=None, phone='', category='', yelp_id='', url='', 
-                 review_num=0, name='', city='', state=''):
+                 review_num=0, name='', city='', state='', city_id = 0):
         self.rating = rating
         self.price = price
         self.phone = phone
@@ -91,6 +93,7 @@ class Restaurant:
         self.name = name
         self.city = city
         self.state = state
+        self.city_id = city_id
 
 #########################################
 ############### Caching #################
@@ -189,6 +192,7 @@ def db_create_table_restaurants():
         CREATE TABLE IF NOT EXISTS "Restaurants" (
             "Id" INTEGER PRIMARY KEY AUTOINCREMENT, 
             "Name" TEXT NOT NULL UNIQUE,
+            "City_id" INTEGER NOT NULL,
             "City" TEXT NOT NULL,
             "State" TEXT NOT NULL,
             "Rating" INTEGER,
@@ -244,13 +248,13 @@ def db_write_table_restaurants(restaurant_instances):
     '''
     insert_restaurants_sql = '''
         INSERT OR IGNORE INTO Restaurants
-        VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     '''
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     for r in restaurant_instances:
         cur.execute(insert_restaurants_sql,
-            [r.name, r.city, r.state, r.rating, r.price, r.category, r.phone, r.yelp_id, r.url, r.review_num]
+            [r.name, r.city_id, r.city, r.state, r.rating, r.price, r.category, r.phone, r.yelp_id, r.url, r.review_num]
         )
     
     conn.commit()
@@ -334,7 +338,7 @@ def build_restaurant_instance(city_instances):
                 name = business['name']
                 state = business['location']['state']
                 instance = Restaurant(rating=rating, price=price, phone=phone, category=category, yelp_id=yelp_id, 
-                                      url=url, review_num=review_num, name=name, city=city, state=state)
+                                      url=url, review_num=review_num, name=name, city=city, state=state, city_id=c.id_pos)
                 restaurant_instances.append(instance)
     
     return restaurant_instances
@@ -466,7 +470,7 @@ def process_name(city_name):
 
 def get_avg_and_sort(results):
     '''given a query search results, return the average value for the given category
-       and sort the results by descending order
+       and sort the results in descending order
     
     Parameters
     ----------
@@ -568,7 +572,7 @@ def barplot_city_population():
 
 ########## plots for cities or states ############
 
-def pieplot_restaurant_categories(name, target):
+def pieplot_restaurant_categories(name, target, id_pos=None):
     ''' a function that generate a pieplot for the percentage
         of each restaurant category in the city or state specified 
 
@@ -578,6 +582,8 @@ def pieplot_restaurant_categories(name, target):
         a city name or a state name
     target: string
         indicates the name is a city or a state
+    id_pos: int
+        the id that uniquely identify a city
 
     Returns
     -------
@@ -585,13 +591,13 @@ def pieplot_restaurant_categories(name, target):
         the plot that is readable by html files
     '''
     name = process_name(name)
+    query = '''SELECT r.Category FROM Restaurants as r
+                JOIN Cities as c ON c.Id=r.City_id'''
     if target == 'city':
-        query = '''SELECT Category FROM Restaurants
-                    WHERE City="{}"'''.format(name)
+        query += ''' WHERE r.City="{}" AND c.Id={}'''.format(name, id_pos)
     elif target == 'state':
-        query = '''SELECT r.Category FROM Restaurants as r
-                   JOIN Cities as c ON c.Name=r.City
-                   WHERE c.State="{}"'''.format(name)
+        query += ''' WHERE c.State="{}"'''.format(name)
+    
     results = searchDB(query)
     dict_category = {}
     for row in results:
@@ -617,7 +623,7 @@ def pieplot_restaurant_categories(name, target):
     title = '''Popular Restaurant Types in {} {}'''.format(name, target.capitalize())
     return flask_plot(labels, values, title, 'pie')
 
-def pieplot_rating(name, target):
+def pieplot_rating(name, target, id_pos=None):
     ''' a function that generate a pieplot for the percentage
         of ratings of the restaurants in the city or state specified 
 
@@ -627,6 +633,8 @@ def pieplot_rating(name, target):
         a city name or a state name
     target: string
         indicates the name is a city or a state
+    id_pos: int
+        the id that uniquely identify a city
 
     Returns
     -------
@@ -634,12 +642,13 @@ def pieplot_rating(name, target):
         the plot that is readable by html files
     '''
     name = process_name(name)
+    query = '''SELECT r.Rating FROM Restaurants as r
+                JOIN Cities as c ON c.Id=r.City_id'''
     if target == 'city':
-        query = '''SELECT Rating FROM Restaurants WHERE City="{}"'''.format(name)
+        query += ''' WHERE r.City="{}" AND c.Id={}'''.format(name, id_pos)
     elif target == 'state':
-        query = '''SELECT r.Rating FROM Restaurants as r
-                   JOIN Cities as c ON r.City=c.Name
-                   WHERE c.State="{}"'''.format(name)
+        query += ''' WHERE c.State="{}"'''.format(name)
+    
     results = searchDB(query)
     dict_rating = {}
     for row in results:
@@ -654,7 +663,7 @@ def pieplot_rating(name, target):
     title = 'Restaurant Rating Percentage in {} {}'.format(name, target.capitalize())
     return flask_plot(labels, values, title, 'pie')
 
-def pieplot_price(name, target):
+def pieplot_price(name, target, id_pos=None):
     ''' a function that generate a pieplot for the percentage
         of prices of the restaurants in the city or state specified 
 
@@ -664,6 +673,8 @@ def pieplot_price(name, target):
         a city name or a state name
     target: string
         indicates the name is a city or a state
+    id_pos: int
+        the id that uniquely identify a city
 
     Returns
     -------
@@ -671,12 +682,13 @@ def pieplot_price(name, target):
         the plot that is readable by html files
     '''
     name = process_name(name)
+    query = '''SELECT r.Price FROM Restaurants as r
+                JOIN Cities as c ON c.Id=r.City_id'''
     if target == 'city':
-        query = '''SELECT Price FROM Restaurants WHERE City="{}" AND Price NOTNULL'''.format(name)
+        query += ''' WHERE r.City="{}" AND c.Id={} AND r.Price NOTNULL'''.format(name, id_pos)
     elif target == 'state':
-        query = '''SELECT r.Price FROM Restaurants as r
-                   JOIN Cities as c ON r.City=c.Name
-                   WHERE c.State="{}" AND r.Price NOTNULL'''.format(name)
+        query += ''' WHERE c.State="{}" AND r.Price NOTNULL'''.format(name)
+    
     results = searchDB(query)
     dict_price = {}
     for row in results:
@@ -691,7 +703,7 @@ def pieplot_price(name, target):
     title = 'Restaurant Price Percentage in {} {}'.format(name, target.capitalize())
     return flask_plot(labels, values, title, 'pie')
 
-def barplot_avgrating_each_category(name, target):
+def barplot_avgrating_each_category(name, target, id_pos=None):
     ''' a function that generate a barplot for the average rating 
         of differnt restaurant types in the city or state specified 
 
@@ -701,6 +713,8 @@ def barplot_avgrating_each_category(name, target):
         a city name or a state name
     target: string
         indicates the name is a city or a state
+    id_pos: int
+        the id that uniquely identify a city
 
     Returns
     -------
@@ -708,18 +722,19 @@ def barplot_avgrating_each_category(name, target):
         the plot that is readable by html files
     '''
     name = process_name(name)
+    query = '''SELECT r.Category, r.Rating FROM Restaurants as r
+                JOIN Cities as c ON c.Id=r.City_id'''
     if target == 'city':
-        query = '''SELECT Category, Rating FROM Restaurants WHERE City="{}"'''.format(name)
+        query += ''' WHERE r.City="{}" AND c.Id={}'''.format(name, id_pos)
     elif target == 'state':
-        query = '''SELECT r.Category, r.Rating FROM Restaurants as r
-                   JOIN Cities as c ON r.City=c.Name
-                   WHERE c.State="{}"'''.format(name)
+        query += ''' WHERE c.State="{}"'''.format(name)
+    
     results = searchDB(query)
     xvals, yvals = get_avg_and_sort(results)
     title = 'Average Rating of Restaurants By Category in {} {}'.format(name, target.capitalize())
     return flask_plot(xvals, yvals, title, 'bar')
 
-def barplot_avgprice_each_category(name, target):
+def barplot_avgprice_each_category(name, target, id_pos=None):
     ''' a function that generate a barplot for the average price 
         of differnt restaurant types in the city or state specified 
 
@@ -729,6 +744,8 @@ def barplot_avgprice_each_category(name, target):
         a city name or a state name
     target: string
         indicates the name is a city or a state
+    id_pos: int
+        the id that uniquely identify a city
 
     Returns
     -------
@@ -736,19 +753,19 @@ def barplot_avgprice_each_category(name, target):
         the plot that is readable by html files
     '''
     name = process_name(name)
+    query = '''SELECT r.Category, r.Price FROM Restaurants as r
+                JOIN Cities as c ON c.Id=r.City_id'''
     if target == 'city':
-        query = '''SELECT Category, Price FROM Restaurants
-                    WHERE City="{}" AND Price NOTNULL'''.format(name)
+        query += ''' WHERE r.City="{}" AND c.Id={} AND r.Price NOTNULL'''.format(name, id_pos)
     elif target == 'state':
-        query = '''SELECT r.Category, r.Price FROM Restaurants as r
-                   JOIN Cities as c ON r.City=c.Name
-                   WHERE c.State="{}" AND r.Price NOTNULL'''.format(name)
+        query += ''' WHERE c.State="{}" AND r.Price NOTNULL'''.format(name)
+    
     results = searchDB(query)
     xvals, yvals = get_avg_and_sort(results)
     title = 'Average Price of Restaurants By Category in {} {}'.format(name, target.capitalize())
     return flask_plot(xvals, yvals, title, 'bar')
   
-def barplot_avgreview_each_category(name, target):
+def barplot_avgreview_each_category(name, target, id_pos=None):
     ''' a function that generate a barplot for the average number of reviews 
         of differnt restaurant types in the city or state specified 
 
@@ -758,6 +775,8 @@ def barplot_avgreview_each_category(name, target):
         a city name or a state name
     target: string
         indicates the name is a city or a state
+    id_pos: int
+        the id that uniquely identify a city
 
     Returns
     -------
@@ -765,19 +784,19 @@ def barplot_avgreview_each_category(name, target):
         the plot that is readable by html files
     '''
     name = process_name(name)
+    query = '''SELECT r.Category, r.[Number of Review] FROM Restaurants as r
+                JOIN Cities as c ON c.Id=r.City_id'''
     if target == 'city':
-        query = '''SELECT Category, [Number of Review] FROM Restaurants
-                    WHERE City="{}"'''.format(name)
+        query += ''' WHERE r.City="{}" AND c.Id={}'''.format(name, id_pos)
     elif target == 'state':
-        query = '''SELECT r.Category, r.[Number of Review] FROM Restaurants as r
-                   JOIN Cities as c ON r.City=c.Name
-                   WHERE c.State="{}"'''.format(name)
+        query += ''' WHERE c.State="{}"'''.format(name)
+    
     results = searchDB(query)
     xvals, yvals = get_avg_and_sort(results)
     title = 'Average Number of Reviews of Different Categories in {} {}'.format(name, target.capitalize())
     return flask_plot(xvals, yvals, title, 'bar')
   
-def barplot_toprated_restaurant(name, target):
+def barplot_toprated_restaurant(name, target, id_pos=None):
     ''' a function that generate a barplot for the top rated restaurants
         in the city or state specified 
 
@@ -787,6 +806,8 @@ def barplot_toprated_restaurant(name, target):
         a city name or a state name
     target: string
         indicates the name is a city or a state
+    id_pos: int
+        the id that uniquely identify a city
 
     Returns
     -------
@@ -794,13 +815,13 @@ def barplot_toprated_restaurant(name, target):
         the plot that is readable by html files
     '''
     name = process_name(name)
+    query = '''SELECT r.Name, r.Rating FROM Restaurants as r
+                JOIN Cities as c ON c.Id=r.City_id'''
     if target == 'city':
-        query = '''SELECT Name, Rating FROM Restaurants WHERE City="{}"
-                    ORDER BY Rating DESC'''.format(name)
+        query += ''' WHERE r.City="{}" AND c.Id={} ORDER BY r.Rating DESC'''.format(name, id_pos)
     elif target == 'state':
-        query = '''SELECT r.Name, r.Rating FROM Restaurants as r
-                   JOIN Cities as c ON r.City=c.Name
-                   WHERE c.State="{}" ORDER BY r.Rating DESC'''.format(name)
+        query += ''' WHERE c.State="{}" ORDER BY r.Rating DESC'''.format(name)
+    
     results = searchDB(query)
     xvals = []
     yvals = []
@@ -811,7 +832,7 @@ def barplot_toprated_restaurant(name, target):
     title = 'Top Rated Restaurants in {} {}'.format(name, target.capitalize())
     return flask_plot(xvals, yvals, title, 'bar')
    
-def barplot_topprice_restaurant(name, target):
+def barplot_topprice_restaurant(name, target, id_pos=None):
     ''' a function that generate a barplot for the most 
         expensive restaurants in the city or state specified 
 
@@ -821,6 +842,8 @@ def barplot_topprice_restaurant(name, target):
         a city name or a state name
     target: string
         indicates the name is a city or a state
+    id_pos: int
+        the id that uniquely identify a city
 
     Returns
     -------
@@ -828,13 +851,14 @@ def barplot_topprice_restaurant(name, target):
         the plot that is readable by html files
     '''
     name = process_name(name)
+    query = '''SELECT r.Name, r.Price FROM Restaurants as r
+                JOIN Cities as c ON c.Id=r.City_id'''
     if target == 'city':
-        query = '''SELECT Name, Price FROM Restaurants WHERE City="{}"
-                    AND Price NOTNULL ORDER BY Price DESC'''.format(name)
+        query += ''' WHERE r.City="{}" AND c.Id={}
+                    AND r.Price NOTNULL ORDER BY r.Price DESC'''.format(name, id_pos)
     elif target == 'state':
-        query = '''SELECT r.Name, r.Price FROM Restaurants as r
-                   JOIN Cities as c ON r.City=c.Name
-                   WHERE c.State="{}" AND r.Price NOTNULL ORDER BY r.Price DESC'''.format(name)
+        query += ''' WHERE c.State="{}" AND r.Price NOTNULL ORDER BY r.Price DESC'''.format(name)
+    
     results = searchDB(query)
     xvals = []
     yvals = []
@@ -845,7 +869,7 @@ def barplot_topprice_restaurant(name, target):
     title = 'Most Expensive Restaurants in {} {}'.format(name, target.capitalize())
     return flask_plot(xvals, yvals, title, 'bar')
 
-def barplot_mostreviewed_restaurant(name, target):
+def barplot_mostreviewed_restaurant(name, target, id_pos=None):
     ''' a function that generate a barplot for the most 
         reviewed restaurants in the city or state specified 
 
@@ -855,6 +879,8 @@ def barplot_mostreviewed_restaurant(name, target):
         a city name or a state name
     target: string
         indicates the name is a city or a state
+    id_pos: int
+        the id that uniquely identify a city
 
     Returns
     -------
@@ -862,13 +888,13 @@ def barplot_mostreviewed_restaurant(name, target):
         the plot that is readable by html files
     '''
     name = process_name(name)
+    query = '''SELECT r.Name, r.[Number of Review] FROM Restaurants as r
+                JOIN Cities as c ON c.Id=r.City_id'''
     if target == 'city':
-        query = '''SELECT Name, [Number of Review] FROM Restaurants WHERE City="{}"
-                    ORDER BY [Number of Review] DESC'''.format(name)
+        query +=  ''' WHERE r.City="{}" AND c.Id={} ORDER BY r.[Number of Review] DESC'''.format(name, id_pos)
     elif target == 'state':
-        query = '''SELECT r.Name, r.[Number of Review] FROM Restaurants as r
-                   JOIN Cities as c ON r.City=c.Name
-                   WHERE c.State="{}" ORDER BY r.[Number of Review] DESC'''.format(name)
+        query += ''' WHERE c.State="{}" ORDER BY r.[Number of Review] DESC'''.format(name)
+    
     results = searchDB(query)
     xvals = []
     yvals = []
@@ -894,9 +920,17 @@ def compare_city_barplot_price():
     string
         the plot that is readable by html files
     '''
-    query = '''SELECT City, Price FROM Restaurants WHERE Price NOTNULL'''
+    query = '''SELECT City, State, Price FROM Restaurants WHERE Price NOTNULL'''
     results = searchDB(query)
-    xvals, yvals = get_avg_and_sort(results)
+    res_combined = []
+    for row in results:
+        uniq = row[0] + "({})".format(row[1])
+        temp = []
+        temp.append(uniq)
+        temp.append(row[2])
+        res_combined.append(temp)
+
+    xvals, yvals = get_avg_and_sort(res_combined)
     title = 'City Ranking by Average Price'
     return flask_plot(xvals, yvals, title, 'bar')
 
@@ -913,9 +947,17 @@ def compare_city_barplot_rating():
     string
         the plot that is readable by html files
     '''
-    query = '''SELECT City, Rating FROM Restaurants'''
+    query = '''SELECT City, State, Rating FROM Restaurants'''
     results = searchDB(query)
-    xvals, yvals = get_avg_and_sort(results)
+    res_combined = []
+    for row in results:
+        uniq = row[0] + "({})".format(row[1])
+        temp = []
+        temp.append(uniq)
+        temp.append(row[2])
+        res_combined.append(temp)
+    
+    xvals, yvals = get_avg_and_sort(res_combined)
     title = 'City Ranking by Average Rating'
     return flask_plot(xvals, yvals, title, 'bar')
 
@@ -933,8 +975,8 @@ def compare_state_barplot_price():
         the plot that is readable by html files
     '''
     query = '''SELECT c.State, r.Price FROM Cities as c
-               JOIN Restaurants as r ON c.Name=r.City
-               WHERE Price NOTNULL'''
+               JOIN Restaurants as r ON c.Id=r.City_id
+               WHERE r.Price NOTNULL'''
     results = searchDB(query)
     xvals, yvals = get_avg_and_sort(results)
     title = 'State Ranking by Average Price'
@@ -954,7 +996,7 @@ def compare_state_barplot_rating():
         the plot that is readable by html files
     '''
     query = '''SELECT c.State, r.Rating FROM Cities as c
-               JOIN Restaurants as r ON c.Name=r.City'''
+               JOIN Restaurants as r ON c.Id=r.City_id'''
     results = searchDB(query)
     xvals, yvals = get_avg_and_sort(results)
     title = 'State Ranking by Average Rating'
@@ -1018,7 +1060,13 @@ def choice_list(city_or_state, nm):
     -------
     a html template that contains city city_or_state and nm.
     '''
-    return render_template('list.html', city_or_state=city_or_state, name=nm)
+    if city_or_state == 'state':
+        return render_template('list.html', city_or_state=city_or_state, name=nm)
+    else:
+        id_city = nm.split('_')
+        id_pos = int(id_city[0])
+        name = process_name(id_city[1].replace('%20', ' '))
+        return render_template('list.html', city_or_state=city_or_state, name=name, id_pos=id_pos)
 
 @app.route('/plot/<city_or_state>/<nm>/<choice>')
 def data(city_or_state, nm, choice):
@@ -1034,26 +1082,49 @@ def data(city_or_state, nm, choice):
     -------
     html template that contains figure which is a plot.
     '''
-    name = process_name(nm.replace('%20', ' '))
-    if choice == 'pieplot_restaurant_categories':
-        figure = pieplot_restaurant_categories(name, city_or_state)
-    elif choice == 'pieplot_rating':
-        figure = pieplot_rating(name, city_or_state)
-    elif choice == 'pieplot_price':
-        figure = pieplot_price(name, city_or_state)
-    elif choice == 'barplot_avgprice_each_category':
-        figure = barplot_avgprice_each_category(name, city_or_state)
-    elif choice == 'barplot_avgrating_each_category':
-        figure = barplot_avgrating_each_category(name, city_or_state)
-    elif choice == 'barplot_avgreview_each_category':
-        figure = barplot_avgreview_each_category(name, city_or_state)
-    elif choice == 'barplot_toprated_restaurant':
-        figure = barplot_toprated_restaurant(name, city_or_state)
-    elif choice == 'barplot_topprice_restaurant':
-        figure = barplot_topprice_restaurant(name, city_or_state)
-    elif choice == 'barplot_mostreviewed_restaurant':
-        figure = barplot_mostreviewed_restaurant(name, city_or_state)
-   
+    if city_or_state == 'state':
+        name = process_name(nm.replace('%20', ' '))
+        if choice == 'pieplot_restaurant_categories':
+            figure = pieplot_restaurant_categories(name, city_or_state)
+        elif choice == 'pieplot_rating':
+            figure = pieplot_rating(name, city_or_state)
+        elif choice == 'pieplot_price':
+            figure = pieplot_price(name, city_or_state)
+        elif choice == 'barplot_avgprice_each_category':
+            figure = barplot_avgprice_each_category(name, city_or_state)
+        elif choice == 'barplot_avgrating_each_category':
+            figure = barplot_avgrating_each_category(name, city_or_state)
+        elif choice == 'barplot_avgreview_each_category':
+            figure = barplot_avgreview_each_category(name, city_or_state)
+        elif choice == 'barplot_toprated_restaurant':
+            figure = barplot_toprated_restaurant(name, city_or_state)
+        elif choice == 'barplot_topprice_restaurant':
+            figure = barplot_topprice_restaurant(name, city_or_state)
+        elif choice == 'barplot_mostreviewed_restaurant':
+            figure = barplot_mostreviewed_restaurant(name, city_or_state)
+    else:
+        id_city = nm.split('_')
+        id_pos = int(id_city[0])
+        name = process_name(id_city[1].replace('%20', ' '))
+        if choice == 'pieplot_restaurant_categories':
+            figure = pieplot_restaurant_categories(name, city_or_state, id_pos=id_pos)
+        elif choice == 'pieplot_rating':
+            figure = pieplot_rating(name, city_or_state, id_pos=id_pos)
+        elif choice == 'pieplot_price':
+            figure = pieplot_price(name, city_or_state, id_pos=id_pos)
+        elif choice == 'barplot_avgprice_each_category':
+            figure = barplot_avgprice_each_category(name, city_or_state, id_pos=id_pos)
+        elif choice == 'barplot_avgrating_each_category':
+            figure = barplot_avgrating_each_category(name, city_or_state, id_pos=id_pos)
+        elif choice == 'barplot_avgreview_each_category':
+            figure = barplot_avgreview_each_category(name, city_or_state, id_pos=id_pos)
+        elif choice == 'barplot_toprated_restaurant':
+            figure = barplot_toprated_restaurant(name, city_or_state, id_pos=id_pos)
+        elif choice == 'barplot_topprice_restaurant':
+            figure = barplot_topprice_restaurant(name, city_or_state, id_pos=id_pos)
+        elif choice == 'barplot_mostreviewed_restaurant':
+            figure = barplot_mostreviewed_restaurant(name, city_or_state, id_pos=id_pos)
+    
     return render_template('plot.html', figure=Markup(figure))
 
 @app.route('/compare/<city_or_state>')
