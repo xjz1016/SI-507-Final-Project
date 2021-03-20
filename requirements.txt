@@ -2,5 +2,5 @@ beautifulsoup4==4.9.0
 bs4==0.0.1
 requests==2.23.0
 Flask==1.1.2
-Jinja2==2.11.1
+Jinja2==2.11.3
 plotly==4.6.0
